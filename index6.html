@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<!-- to start a local server: python -m SimpleHTTPServer  -->
+<html lang="en">
+<head>
+	<title>Where do Americans live?</title>
+	<meta charset="utf-8">
+	<script src="http://d3js.org/d3.v4.min.js"></script>
+	<style type="text/css">
+
+			p {
+			margin-left: 10px;
+			margin-right: 100px;
+			}
+			
+			h1 {
+			font-size: 22px;
+			}
+
+				
+			input[type=radio] {
+				margin-left: 10px;
+			}
+
+			.pan rect,
+			.zoom rect {
+				fill: black;
+				opacity: 0.2;
+			}
+			
+			.zoom rect {
+				rx: 5;  /* Rounded corners */
+				ry: 5;
+			}
+
+			.pan text,
+			.zoom text {
+				fill: black;
+				font-size: 18px;
+				text-anchor: middle;
+			}
+
+			.pan:hover rect, 
+ 			.pan:hover text,
+			.zoom:hover rect,
+ 			.zoom:hover text {
+				fill: blue;
+			}
+
+		</style>
+	</head>
+	<body>
+		
+		<h1>CS590V HW 3:  Mapping</h1>
+		<p>The goal of this map is to illustrate the distribution of the American population across cities and states. This map uses 
+		two csv datasets, a JSON file of state shapes, and the d3 Albers USA projection.  The first dataset, state.csv, has 48 records for each state in the contiguous 
+		US and 2 variables, state name and population.  The second dataset, 100-cities.csv, has 100 records for each of the largest 
+		cities in the contiguous US and 7 variables: rank, city name, population, longitude, latitude, % growth 2010-2013, and state.  Both datasets are from the 
+		2014 US Census American Community Survey data.</p> 
+		
+		<p>A projection is a method by which 3D space is projected onto a 2D plane.  The Albers projection is a
+		conic, equal area map projection commonly used by the USGS and Census Bureau.  The projection uses two standard parallels and,
+		although scale and shape are not completely preserved, their distortion is minimized between the two parallels. Mike Bostock's d3 
+		Albers USA projection is a composite Albers projection of the contiguous US with Hawaii and Alaska shown in the lower left.</p> 
+		
+		<p>There are several interactive elements to explore.  First, the map allows the user to select which cities they want to show
+		using a series of radio buttons.  When a radio button is selected, all cities with values below the selected value have their
+		fill set to "none", making them seem to disappear from the map.  A second interactive element is that the user can hover over
+		the points to view the city name, state, population and population rank.  Thirdly, the user can zoom in and out of the map
+		using both the mouse and buttons.  Similarly, the user can pan around the map using the mouse and the arrows.  I have been
+		trying to add a slider to allow the user to highlight states by population, but unfortunately I have had no success.</p>
+		
+		<p>Novel features of this map that I believe go above and beyond are: the amount of information available using hover, the use
+		of color and circle size to communicate population information, the use of data from two csv files in addition to the 
+		state JSON file and the Albers USA projection, and the multiple zooming and panning options.</p>
+		
+		<br>
+		<hr>
+		  
+		<h1>Where do Americans live?  States by Population and 100 Largest U.S. Cities</h1>
+		<!-- Radio buttons to select city size -->	
+		<p style="color: blue;"><b>
+			&nbsp &nbsp &nbsp Select cities by population:
+			<input type="radio" name="filterPreset" value="0" checked="true"> All
+			<input type="radio" name="filterPreset" value="250000"> more than 250,000
+			<input type="radio" name="filterPreset" value="500000"> more than 500,000
+			<input type="radio" name="filterPreset" value="1000000"> more than 1,000,000
+		</b></p>
+		<div>
+		&nbsp
+		</div>
+		
+		<script type="text/javascript">
+
+			//Width and height
+			var w = 850;
+			var h = 500;
+
+			//Define map projection
+			var projection = d3.geoAlbersUsa()
+								   .translate([0, 0]);
+
+			//Define path generator
+			var path = d3.geoPath()
+							 .projection(projection);
+				 
+			//Use quantize scale to sort data values into buckets of color
+			var color = d3.scaleQuantize()
+								.range(["rgb(254,227,145)","rgb(254,196,79)","rgb(254,153,41)","rgb(236,112,20)","rgb(204,76,2)","rgb(140,45,4)"]);
+								//Colors taken from colorbrewer.js, included in the D3 download
+
+			//Number formatting for population values
+			var formatAsThousands = d3.format(",");  //e.g. converts 123456 to "123,456"
+
+			//Create SVG element
+			var svg = d3.select("body")
+						.append("svg")
+						.attr("width", w)
+						.attr("height", h);
+
+			//Define what to do when panning or zooming
+			var zooming = function(d) {
+
+				//New offset array
+				var offset = [d3.event.transform.x, d3.event.transform.y];
+
+				//Calculate new scale
+				var newScale = d3.event.transform.k * 3600;
+
+				//Update projection with new offset and scale
+				projection.translate(offset)
+						  .scale(newScale);
+
+				//Update all paths and circles
+				svg.selectAll("path")
+					.attr("d", path);
+
+				svg.selectAll("circle")
+					.attr("cx", function(d) {
+						return projection([d.lon, d.lat])[0];
+					})
+					.attr("cy", function(d) {
+						return projection([d.lon, d.lat])[1];
+					});
+
+			}
+
+			//Then define the zoom behavior
+			var zoom = d3.zoom()
+						 .on("zoom", zooming);
+
+			//The center of the country, roughly
+			var center = projection([-97.0, 39.0]);
+
+			//Create a container in which all zoom-able elements will live
+			var map = svg.append("g")
+						.attr("id", "map")
+						.call(zoom)  //Bind the zoom behavior
+  						.call(zoom.transform, d3.zoomIdentity  //Then apply the initial transform
+							.translate(w/2, h/2)
+							.scale(0.25)
+							.translate(-center[0], -center[1]));
+
+			//Create a new, invisible background rect to catch zoom events
+			map.append("rect")
+				.attr("x", 0)
+				.attr("y", 0)
+				.attr("width", w)
+				.attr("height", h)
+				.attr("opacity", 0);
+
+			//Load in state population
+			d3.csv("states.csv", function(data) {
+
+				//Set input domain for color scale using sqrt of population to adjust for skewed data
+				color.domain([
+					d3.min(data, function(d) { return Math.sqrt(d.value); }), 
+					d3.max(data, function(d) { return Math.sqrt(d.value); })
+				]);
+
+				//Load in GeoJSON data
+				d3.json("us-states.json", function(json) {
+
+					//Merge the population data and GeoJSON
+					//Loop through once for each pop data value
+					for (var i = 0; i < data.length; i++) {
+				
+						var dataState = data[i].state;				//Grab state name
+						var dataValue = Math.sqrt(parseFloat(data[i].value));	//Grab data value, and convert from string to float
+				
+						//Find the corresponding state inside the GeoJSON
+						for (var j = 0; j < json.features.length; j++) {
+						
+							var jsonState = json.features[j].properties.name;
+				
+							if (dataState == jsonState) {
+						
+								//Copy the data value into the JSON
+								json.features[j].properties.value = dataValue;
+								
+								//Stop looking through the JSON
+								break;
+								
+							}
+						}		
+					}
+
+					//Bind data and create one path per GeoJSON feature
+					map.selectAll("path")
+					   .data(json.features)
+					   .enter()
+					   .append("path")
+					   .attr("d", path)
+					   .style("fill", function(d) {
+					   		//Get data value
+					   		var value = d.properties.value;
+					   		
+					   		if (value) {
+					   			//If value exists…
+						   		return color(value);
+					   		} else {
+					   			//If value is undefined…
+						   		return "#ccc";
+					   		}
+					   });
+
+					//Load in cities data
+					d3.csv("100-cities.csv", function(data) {
+						console.log("cities length:" + data.length)
+
+						map.selectAll("circle")
+						   .data(data)
+						   .enter()
+						   .append("circle")
+						   .attr("cx", function(d) {
+							   return projection([d.lon, d.lat])[0];
+						   })
+						   .attr("cy", function(d) {
+							   return projection([d.lon, d.lat])[1];
+						   })
+						   .attr("r", function(d) {
+								return Math.sqrt(parseInt(d.population) * 0.00004);
+						   })
+						   .style("fill", "darkblue")
+						   .style("stroke", "gray")
+						   .style("stroke-width", 0.25)
+						   .style("opacity", 0.75)
+						   .append("title")			//Simple tooltip
+						   .text(function(d) {
+								return d.place + ", " + d.state + ": Pop. " + formatAsThousands(d.population) + ", Rank: " + d.rank;
+							});
+						
+						createPanButtons();
+						createZoomButtons();
+
+					});
+
+			
+				});
+			
+			});
+			
+			//On radio button change, update styling
+			d3.selectAll("input")
+				.on("click", function() {
+
+					var threshold = +d3.select(this).node().value;
+					
+					map.selectAll("circle").style("fill","darkblue")
+							.filter(function(d) {
+							return d.population <= threshold;
+							})
+						.style("fill", "none");
+
+				});
+
+			
+			//Create panning buttons
+			var createPanButtons = function() {
+
+				//Create the clickable groups
+
+				//North
+				var north = svg.append("g")
+					.attr("class", "pan")	//All share the 'pan' class
+					.attr("id", "north");	//The ID will tell us which direction to head
+
+				north.append("rect")
+					.attr("x", 0)
+					.attr("y", 0)
+					.attr("width", w)
+					.attr("height", 30);
+
+				north.append("text")
+					.attr("x", w/2)
+					.attr("y", 20)
+					.html("&uarr;")
+				
+				//South
+				var south = svg.append("g")
+					.attr("class", "pan")
+					.attr("id", "south");
+
+				south.append("rect")
+					.attr("x", 0)
+					.attr("y", h - 30)
+					.attr("width", w)
+					.attr("height", 30);
+
+				south.append("text")
+					.attr("x", w/2)
+					.attr("y", h - 10)
+					.html("&darr;")
+
+				//West
+				var west = svg.append("g")
+					.attr("class", "pan")
+					.attr("id", "west");
+
+				west.append("rect")
+					.attr("x", 0)
+					.attr("y", 30)
+					.attr("width", 30)
+					.attr("height", h - 60);
+
+				west.append("text")
+					.attr("x", 15)
+					.attr("y", h/2)
+					.html("&larr;")
+
+				//East
+				var east = svg.append("g")
+					.attr("class", "pan")
+					.attr("id", "east");
+
+				east.append("rect")
+					.attr("x", w - 30)
+					.attr("y", 30)
+					.attr("width", 30)
+					.attr("height", h - 60);
+
+				east.append("text")
+					.attr("x", w - 15)
+					.attr("y", h/2)
+					.html("&rarr;")
+
+				//Panning interaction
+
+				d3.selectAll(".pan")
+					.on("click", function() {
+
+						//Set how much to move on each click
+						var moveAmount = 50;
+						
+						//Set x/y to zero
+						var x = 0;
+						var y = 0;
+						
+						//direction of pan
+						var direction = d3.select(this).attr("id");
+
+						//Modify the offset, depending on the direction
+						switch (direction) {
+							case "north":
+								y += moveAmount;  //Increase y offset
+								break;
+							case "south":
+								y -= moveAmount;  //Decrease y offset
+								break;
+							case "west":
+								x += moveAmount;  //Increase x offset
+								break;
+							case "east":
+								x -= moveAmount;  //Decrease x offset
+								break;
+							default:
+								break;
+						}
+
+						//This triggers a zoom event, translating by x, y
+						map.transition()
+							.call(zoom.translateBy, x, y);
+
+					});
+
+			};
+			
+			//Create zoom buttons
+			var createZoomButtons = function() {
+
+				//Create the clickable groups
+
+				//Zoom in button
+				var zoomIn = svg.append("g")
+					.attr("class", "zoom")	//All share the 'zoom' class
+					.attr("id", "in")		//The ID will tells which direction to head
+					.attr("transform", "translate(" + (w - 110) + "," + (h - 70) + ")");
+
+				zoomIn.append("rect")
+					.attr("x", 0)
+					.attr("y", 0)
+					.attr("width", 30)
+					.attr("height", 30);
+
+				zoomIn.append("text")
+					.attr("x", 15)
+					.attr("y", 20)
+					.text("+");
+				
+				//Zoom out button
+				var zoomOut = svg.append("g")
+					.attr("class", "zoom")
+					.attr("id", "out")
+					.attr("transform", "translate(" + (w - 70) + "," + (h - 70) + ")");
+
+				zoomOut.append("rect")
+					.attr("x", 0)
+					.attr("y", 0)
+					.attr("width", 30)
+					.attr("height", 30);
+
+				zoomOut.append("text")
+					.attr("x", 15)
+					.attr("y", 20)
+					.html("&ndash;");
+
+				//Zooming interaction
+
+				d3.selectAll(".zoom")
+					.on("click", function() {
+
+						//Set how much to scale on each click
+						var scaleFactor;
+						
+						//Direction to zoom
+						var direction = d3.select(this).attr("id");
+
+						//Modify the scale value, depending on the direction
+						switch (direction) {
+							case "in":
+								scaleFactor = 1.5;
+								break;
+							case "out":
+								scaleFactor = 0.75;
+								break;
+							default:
+								break;
+						}
+
+						//This triggers a zoom event, scaling by 'scaleFactor'
+						map.transition()
+							.call(zoom.scaleBy, scaleFactor);
+
+					});
+
+			};
+
+		</script>
+	</body>
+</html>
